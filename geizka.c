@@ -1,6 +1,7 @@
 #define FUSE_USE_VERSION 28
 #include <fuse.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -20,7 +21,7 @@ void writeWarning(char * str){
 	struct tm * timeinfo;
 	time ( &rawtime );
 	timeinfo = localtime (&rawtime);
-	fprintf(logFile, "WARNING::%d%d%d-%d:%d:%d::%s\n", timeinfo->tm_year, timeinfo->tm_mon, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec, str);
+	fprintf(logFile, "WARNING::%d%d%d-%d:%d:%d::%s\n", timeinfo->tm_year+1900, timeinfo->tm_mon, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec, str);
 	fclose(logFile);
 }
 
@@ -30,7 +31,7 @@ void writeInfo(char * str){
 	struct tm * timeinfo;
 	time ( &rawtime );
 	timeinfo = localtime (&rawtime);
-	fprintf(logFile, "INFO::%d%d%d-%d:%d:%d::%s\n", timeinfo->tm_year, timeinfo->tm_mon, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec, str);
+	fprintf(logFile, "INFO::%d%d%d-%d:%d:%d::%s\n", timeinfo->tm_year+1900, timeinfo->tm_mon, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec, str);
 	fclose(logFile);
 }
 
@@ -89,6 +90,91 @@ void decription1WithLength(char * enc, int length){
     }
 }
 
+void encription2(char * path){
+	FILE * file = fopen(path, "rb");
+	int count = 0;
+	char topath[1000];
+	sprintf(topath, "%s.%03d", path, count);
+	void * buffer = malloc(1024);
+	while(1){
+		size_t readSize = fread(buffer, 1, 1024, file);
+		if(readSize == 0)break;
+		FILE * op = fopen(topath, "w");
+		fwrite(buffer, 1, readSize, op);
+		fclose(op);
+		count++;
+		sprintf(topath, "%s.%03d", path, count);
+	}
+	free(buffer);
+	fclose(file);
+	remove(path);
+}
+
+void decription2(char * path){
+	FILE * check = fopen(path, "r");
+	if(check != NULL)return;
+	FILE * file = fopen(path, "w");
+	int count = 0;
+	char topath[1000];
+	sprintf(topath, "%s.%03d", path, count);
+	void * buffer = malloc(1024);
+	while(1){
+		FILE * op = fopen(topath, "rb");
+		if(op == NULL)break;
+		size_t readSize = fread(buffer, 1, 1024, op);
+		fwrite(buffer, 1, readSize, file);
+		fclose(op);
+		remove(topath);
+		count++;
+		sprintf(topath, "%s.%03d", path, count);
+	}
+	free(buffer);
+	fclose(file);
+}
+
+void encrypt2Directory(char * dir){
+	DIR *dp;
+	struct dirent *de;
+	dp = opendir(dir);
+	if (dp == NULL)
+		return;
+	char dirPath[1000];
+	char filePath[1000];
+	while ((de = readdir(dp)) != NULL) {
+		if(strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)continue;
+		if(de->d_type == DT_DIR){
+			sprintf(dirPath, "%s/%s", dir, de->d_name);
+			encrypt2Directory(dirPath);
+		}else if(de->d_type == DT_REG){
+			sprintf(filePath, "%s/%s", dir, de->d_name);
+			encription2(filePath);
+		}
+	}
+	closedir(dp);
+}
+
+void decrypt2Directory(char * dir){
+	DIR *dp;
+	struct dirent *de;
+	dp = opendir(dir);
+	if (dp == NULL)
+		return;
+	char dirPath[1000];
+	char filePath[1000];
+	while ((de = readdir(dp)) != NULL) {
+		if(strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)continue;
+		if(de->d_type == DT_DIR){
+			sprintf(dirPath, "%s/%s", dir, de->d_name);
+			decrypt2Directory(dirPath);
+		}else if(de->d_type == DT_REG){
+			sprintf(filePath, "%s/%s", dir, de->d_name);
+			filePath[strlen(filePath)-4] = '\0';
+			decription2(filePath);
+		}
+	}
+	closedir(dp);
+}
+
 void encription1(char* enc) {
 	encription1WithLength(enc, strlen(enc));
 }
@@ -117,6 +203,7 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 	char * enc1Ptr = strstr(path, encv1);
 	if(enc1Ptr != NULL)
 		decription1(enc1Ptr);
+	char * enc2Ptr = strstr(path, encv2);
 
 	printf("\n\nDEBUG readdir\n\n");
 
@@ -124,7 +211,7 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 	if(strcmp(path,"/") == 0){
 		path=dirpath;
 		sprintf(fpath,"%s",path);
-	} else sprintf(fpath, "%s%s",dirpath,path);
+	} else sprintf(fpath, "%s%s", dirpath, path);
 
 	int res = 0;
 	DIR *dp;
@@ -140,9 +227,20 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 		memset(&st, 0, sizeof(st));
 		st.st_ino = de->d_ino;
 		st.st_mode = de->d_type << 12;
-		if(enc1Ptr != NULL)
-			encription1(de->d_name);
-		res = (filler(buf, de->d_name, &st, 0));
+		if(enc2Ptr != NULL){
+			if(de->d_type == DT_REG ){
+				if(strcmp(de->d_name+(strlen(de->d_name)-4), ".000") == 0){
+					de->d_name[strlen(de->d_name)-4] = '\0';
+					res = (filler(buf, de->d_name, &st, 0));
+				}
+			}else{
+				res = (filler(buf, de->d_name, &st, 0));
+			}
+		}else{
+			if(enc1Ptr != NULL)
+				encription1(de->d_name);
+			res = (filler(buf, de->d_name, &st, 0));
+		}
 		if(res!=0) break;
 	}
 	closedir(dp);
@@ -276,7 +374,10 @@ static int xmp_rmdir(const char *path) {
 	return 0;
 }
 
-static int xmp_rename(const char *from, const char *to) {
+static int xmp_rename(const char * from, const char * to) {
+
+	char * encrFrom = strstr(from, encv2);
+	char * encrTo = strstr(to, encv2);
 
 	printf("\n\nDEBUG rename\n\n");
 
@@ -295,8 +396,6 @@ static int xmp_rename(const char *from, const char *to) {
 		}
 	}
 
-	//check if from contain encv1
-
 	char dir[1000];
 	strncpy(dir, fto, dirIndex);
 	pid_t id = fork();
@@ -313,6 +412,13 @@ static int xmp_rename(const char *from, const char *to) {
 	writeInfo(str);
 	if (res == -1)
 		return -errno;
+	else{
+		if(encrFrom == NULL && encrTo != NULL){
+			encrypt2Directory(fto);
+		} else if(encrFrom != NULL && encrTo == NULL){
+			decrypt2Directory(fto);
+		}
+	}
 
 	return 0;
 }
