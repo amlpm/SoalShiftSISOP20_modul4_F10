@@ -32,8 +32,8 @@ void encription1(char* enc) {
     }
 }
 
-void encription2(char* enc){
-
+void encription2(char * dir){
+	
 }
 
 //dekrip pake caesar cipher
@@ -50,7 +50,7 @@ void decription1(char* dec) {
     }
 }
 
-void decription2(char* dec) {
+void decription2(char* dir) {
 
 }
 
