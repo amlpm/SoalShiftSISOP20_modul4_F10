@@ -10,6 +10,7 @@
 #include <sys/time.h>
 #include <sys/wait.h>
 
+
 static  const  char * dirpath = "/home/geizka/Documents";
 char key[100] = "9(ku@AW1[Lmvgax6q`5Y2Ry?+sF!^HKQiBXCUSe&0M.b%rI'7d)o4~VfZ*{#:}ETt$3J-zpc]lnh8,GwP_ND|jO";
 char encv1[10] = "encv1_";
