@@ -10,7 +10,6 @@
 #include <sys/time.h>
 #include <sys/wait.h>
 
-
 static  const  char * dirpath = "/home/geizka/Documents";
 char key[100] = "9(ku@AW1[Lmvgax6q`5Y2Ry?+sF!^HKQiBXCUSe&0M.b%rI'7d)o4~VfZ*{#:}ETt$3J-zpc]lnh8,GwP_ND|jO";
 char encv1[10] = "encv1_";
@@ -189,12 +188,31 @@ static  int  xmp_getattr(const char *path, struct stat *stbuf){
 	char * enc1Ptr = strstr(path, encv1);
 	if(enc1Ptr != NULL)
 		decription1(enc1Ptr);
+	char * enc2Ptr = strstr(path, encv2);
 	int res;
 	char fpath[1000];
 	sprintf(fpath,"%s%s", dirpath, path);
 	res = lstat(fpath, stbuf);
-	if (res == -1)
-		return -errno;
+	if (res == -1){
+		if(enc2Ptr == NULL){
+			return -errno;
+		}else{
+			sprintf(fpath,"%s%s.000", dirpath, path);
+			lstat(fpath, stbuf);
+			int count = 0;
+			struct stat st;
+			int sizeCount = 0;
+			while(1){
+				if(stat(fpath, &st) < 0){
+					break;
+				}
+				count++;
+				sprintf(fpath, "%s%s.%03d", dirpath, path, count);
+				sizeCount += st.st_size;
+			}
+			stbuf->st_size = sizeCount;
+		}
+	}
 	return 0;
 }
 
