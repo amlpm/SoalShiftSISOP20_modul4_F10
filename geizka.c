@@ -14,6 +14,26 @@ char key[100] = "9(ku@AW1[Lmvgax6q`5Y2Ry?+sF!^HKQiBXCUSe&0M.b%rI'7d)o4~VfZ*{#:}E
 char encv1[10] = "encv1_";
 char encv2[10] = "encv2_";
 
+void writeWarning(char * str){
+	FILE * logFile = fopen("/home/geizka/fs.log", "a");
+	time_t rawtime;
+	struct tm * timeinfo;
+	time ( &rawtime );
+	timeinfo = localtime (&rawtime);
+	fprintf(logFile, "WARNING::%d%d%d-%d:%d:%d::%s\n", timeinfo->tm_year, timeinfo->tm_mon, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec, str);
+	fclose(logFile);
+}
+
+void writeInfo(char * str){
+	FILE * logFile = fopen("/home/geizka/fs.log", "a");
+	time_t rawtime;
+	struct tm * timeinfo;
+	time ( &rawtime );
+	timeinfo = localtime (&rawtime);
+	fprintf(logFile, "INFO::%d%d%d-%d:%d:%d::%s\n", timeinfo->tm_year, timeinfo->tm_mon, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec, str);
+	fclose(logFile);
+}
+
 void encription1WithLength(char* enc, int length) {
 	if(strcmp(enc, ".") == 0 || strcmp(enc, "..") == 0)return;
 	for(int i = length; i >= 0; i--){
@@ -25,7 +45,10 @@ void encription1WithLength(char* enc, int length) {
 	}
 	int start = 0;
 	for(int i = 0; i < length; i++){
-		if(enc[i] == '/')start = i+1;
+		if(enc[i] == '/'){
+			start = i+1;
+			break;
+		}
 	}
     for ( int i = start; i < length; i++) {
 		if(enc[i]=='/')continue;
@@ -48,7 +71,7 @@ void decription1WithLength(char * enc, int length){
 			break;
 		}
 	}
-	int start = 0;
+	int start = length;
 	for(int i = 0; i < length; i++){
 		if(enc[i] == '/'){
 			start = i+1;
@@ -75,12 +98,10 @@ void decription1(char* enc){
 }
 
 static  int  xmp_getattr(const char *path, struct stat *stbuf){
-	printf("\n\nDEBUG getattr\n\n");
-	printf("DEBUGGING %s\n", path);
+	printf("DEBUG getattr %s\n", path);
 	char * enc1Ptr = strstr(path, encv1);
 	if(enc1Ptr != NULL)
 		decription1(enc1Ptr);
-	printf("DEBUGGING %s\n", path);
 	int res;
 	char fpath[1000];
 	sprintf(fpath,"%s%s", dirpath, path);
@@ -92,10 +113,10 @@ static  int  xmp_getattr(const char *path, struct stat *stbuf){
 
 static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi){
 
+	printf("DEBUGGING %s\n", path);
 	char * enc1Ptr = strstr(path, encv1);
 	if(enc1Ptr != NULL)
 		decription1(enc1Ptr);
-	
 
 	printf("\n\nDEBUG readdir\n\n");
 
@@ -133,6 +154,20 @@ static int xmp_mkdir(const char *path, mode_t mode){
 
 	printf("\n\nDEBUG mkdir\n\n");
 
+	char * enc1Ptr = strstr(path, encv1);
+	if(enc1Ptr != NULL){
+		int length = strlen(enc1Ptr);
+		printf("%d\n", length);
+		for(int i = length; i >= 0; i--){
+			if(enc1Ptr[i] == '/'){
+				length = i;
+				break;
+			}
+		}
+		printf("%d\n", length);
+		decription1WithLength(enc1Ptr, length);
+	}
+
 	char fpath[1000];
 	if(strcmp(path,"/") == 0){
 		path=dirpath;
@@ -141,6 +176,9 @@ static int xmp_mkdir(const char *path, mode_t mode){
 	int res;
 
 	res = mkdir(fpath, mode);
+	char str[100];
+	sprintf(str, "MKDIR::%s", path);
+	writeInfo(str);
 	if (res == -1)
 		return -errno;
 
@@ -150,6 +188,20 @@ static int xmp_mkdir(const char *path, mode_t mode){
 static int xmp_mknod(const char *path, mode_t mode, dev_t rdev){
 
 	printf("\n\nDEBUG mknod\n\n");
+
+	char * enc1Ptr = strstr(path, encv1);
+	if(enc1Ptr != NULL){
+		int length = strlen(enc1Ptr);
+		printf("%d\n", length);
+		for(int i = length; i >= 0; i--){
+			if(enc1Ptr[i] == '/'){
+				length = i;
+				break;
+			}
+		}
+		printf("%d\n", length);
+		decription1WithLength(enc1Ptr, length);
+	}
 
 	char fpath[1000];
 	if(strcmp(path,"/") == 0){
@@ -166,6 +218,9 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev){
 		res = mkfifo(fpath, mode);
 	else
 		res = mknod(fpath, mode, rdev);
+	char str[100];
+	sprintf(str, "CREAT::%s", path);
+	writeInfo(str);
 	if (res == -1)
 		return -errno;
 
@@ -175,8 +230,9 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev){
 static int xmp_unlink(const char *path) {
 
 	char * enc1Ptr = strstr(path, encv1);
-	if(enc1Ptr != NULL)
+	if(enc1Ptr != NULL){
 		decription1(enc1Ptr);
+	}
 
 	printf("\n\nDEBUG unlink\n\n");
 
@@ -186,6 +242,10 @@ static int xmp_unlink(const char *path) {
 		sprintf(fpath,"%s",path);
 	} else sprintf(fpath, "%s%s",dirpath,path);
 	int res;
+
+	char str[100];
+	sprintf(str, "REMOVE::%s", path);
+	writeWarning(str);
 
 	res = unlink(fpath);
 	if (res == -1)
@@ -207,6 +267,9 @@ static int xmp_rmdir(const char *path) {
 	int res;
 
 	res = rmdir(fpath);
+	char str[100];
+	sprintf(str, "RMDIR::%s", path);
+	writeWarning(str);
 	if (res == -1)
 		return -errno;
 
@@ -244,8 +307,10 @@ static int xmp_rename(const char *from, const char *to) {
 		execv("/bin/mkdir", arg);
 	}
 
-
 	res = rename(ffrom, fto);
+	char str[100];
+	sprintf(str, "RENAME::%s::%s", from, to);
+	writeInfo(str);
 	if (res == -1)
 		return -errno;
 
@@ -255,6 +320,10 @@ static int xmp_rename(const char *from, const char *to) {
 static int xmp_truncate(const char *path, off_t size) {
 
 	printf("\n\nDEBUG truncate\n\n");
+
+	char * enc1Ptr = strstr(path, encv1);
+	if(enc1Ptr != NULL)
+		decription1(enc1Ptr);
 
 	char fpath[1000];
 	sprintf(fpath, "%s%s",dirpath,path);
@@ -271,6 +340,10 @@ static int xmp_open(const char *path, struct fuse_file_info *fi){
 
 	printf("\n\nDEBUG open\n\n");
 
+	char * enc1Ptr = strstr(path, encv1);
+	if(enc1Ptr != NULL)
+		decription1(enc1Ptr);
+
 	char fpath[1000];
 	sprintf(fpath, "%s%s",dirpath,path);
 	int res;
@@ -286,6 +359,10 @@ static int xmp_open(const char *path, struct fuse_file_info *fi){
 static int xmp_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
 	
 	printf("\n\nDEBUG read\n\n");
+
+	char * enc1Ptr = strstr(path, encv1);
+	if(enc1Ptr != NULL)
+		decription1(enc1Ptr);
 	
 	char fpath[1000];
 	sprintf(fpath, "%s%s",dirpath,path);
@@ -308,6 +385,10 @@ static int xmp_read(const char *path, char *buf, size_t size, off_t offset, stru
 static int xmp_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
 	
 	printf("\n\nDEBUG write\n\n");
+
+	char * enc1Ptr = strstr(path, encv1);
+	if(enc1Ptr != NULL)
+		decription1(enc1Ptr);
 	
 	char fpath[1000];
 	sprintf(fpath, "%s%s", dirpath, path);
@@ -319,6 +400,10 @@ static int xmp_write(const char *path, const char *buf, size_t size, off_t offse
 	
 	if (fd == -1)
 		return -errno;
+
+	char str[100];
+	sprintf(str, "WRITE::%s", path);
+	writeInfo(str);
 
 	res = pwrite(fd, buf, size, offset);
 	if (res == -1)
