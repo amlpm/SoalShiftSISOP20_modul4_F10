@@ -108,7 +108,7 @@ void encription2(char * path){
 	char topath[1000];
 	sprintf(topath, "%s.%03d", path, count);
 	void * buffer = malloc(1024);
-	while(1){ 
+	while(1){
 		size_t readSize = fread(buffer, 1, 1024, file);
 		if(readSize == 0)break;
 		FILE * op = fopen(topath, "w");
@@ -208,28 +208,34 @@ static  int  xmp_getattr(const char *path, struct stat *stbuf){
 	int res;
 	char fpath[1000];
 	sprintf(fpath,"%s%s", dirpath, path);
-	// printf("%s\n", fpath);
+	printf("%s\n", fpath);
 	res = lstat(fpath, stbuf);
 	if (res == -1){
 		if(enc2Ptr == NULL){
 			return -errno;
 		}else{
-			sprintf(fpath,"%s%s.000", dirpath, path);
-			lstat(fpath, stbuf);
-			int count = 0;
-			struct stat st;
-			int sizeCount = 0;
-			while(1){
-				if(stat(fpath, &st) < 0){
-					break;
+			if(strstr(enc2Ptr, "/") == NULL){
+				return -errno;
+			}else{
+				sprintf(fpath,"%s%s.000", dirpath, path);
+				lstat(fpath, stbuf);
+				int count = 0;
+				struct stat st;
+				int sizeCount = 0;
+				while(1){
+					if(stat(fpath, &st) < 0){
+						break;
+					}
+					count++;
+					sprintf(fpath, "%s%s.%03d", dirpath, path, count);
+					sizeCount += st.st_size;
 				}
-				count++;
-				sprintf(fpath, "%s%s.%03d", dirpath, path, count);
-				sizeCount += st.st_size;
+				stbuf->st_size = sizeCount;
+				return 0;
 			}
-			stbuf->st_size = sizeCount;
 		}
 	}
+	printf("%d\n", res);
 	return 0;
 }
 
@@ -519,7 +525,6 @@ static int xmp_open(const char *path, struct fuse_file_info *fi){
 static int xmp_read(const char * path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
 	
 	char * enc1Ptr = strstr(path, encv1);
-	char * enc2Ptr = strstr(path, encv2);
 	if(lastCommand == MKNOD_STATUS){
 		if(enc1Ptr != NULL){
 			int length = strlen(enc1Ptr);
@@ -543,39 +548,16 @@ static int xmp_read(const char * path, char *buf, size_t size, off_t offset, str
 	int res = 0;
 
 	(void) fi;
-
-	if(enc2Ptr != NULL){
-		int count = 0;
-		while(count < 1){
-			sprintf(fpath, "%s%s.%03d", dirpath, path, count);
-			fd = open(fpath, O_RDONLY);
-			if (fd == -1){
-				close(fd);
-				break;
-			}
-
-			res = pread(fd, buf+(count++)*1024, 1024, offset);
-			if(res < 1024){
-				close(fd);
-				break;
-			}
-			if (res == -1)
-				res = -errno;
-			close(fd);
-		}
-	}else{
-		sprintf(fpath, "%s%s",dirpath,path);
+	sprintf(fpath, "%s%s",dirpath,path);
 	
-		fd = open(fpath, O_RDONLY);
-		if (fd == -1)
-			return -errno;
+	fd = open(fpath, O_RDONLY);
+	if (fd == -1)
+		return -errno;
 
-		res = pread(fd, buf, size, offset);
-		if (res == -1)
-			res = -errno;
-		close(fd);
-		return res;
-	}
+	res = pread(fd, buf, size, offset);
+	if (res == -1)
+		res = -errno;
+	close(fd);
 	return res;
 }
 
@@ -691,11 +673,10 @@ static struct fuse_operations xmp_oper = {
 	.rmdir = xmp_rmdir,
 	.rename = xmp_rename,
 	.truncate = xmp_truncate,
-	.fsyncdir = xmp_fsyncdir,
 	.open = xmp_open,
 	.read = xmp_read,
 	.write = xmp_write,
-
+	.fsyncdir = xmp_fsyncdir,
 };
 
 int  main(int  argc, char *argv[]){
