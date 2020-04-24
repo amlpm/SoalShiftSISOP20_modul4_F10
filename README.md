@@ -131,13 +131,69 @@ Sehingga dekripsi dimulai dari karakter ke start hingga ke length
 Jawab : 
 
 Enkripsi Versi 2 :
+```Javascript
+void encription2(char * path){
+	FILE * file = fopen(path, "rb");
+	int count = 0;
+	char topath[1000];
+	sprintf(topath, "%s.%03d", path, count);
+	void * buffer = malloc(1024);
+	while(1){
+		size_t readSize = fread(buffer, 1, 1024, file);
+		if(readSize == 0)break;
+		FILE * op = fopen(topath, "w");
+		fwrite(buffer, 1, readSize, op);
+		fclose(op);
+		count++;
+		sprintf(topath, "%s.%03d", path, count);
+	}
+	free(buffer);
+	fclose(file);
+	remove(path);
+}
+```
+- Untuk menyalin isi file yang akan di enkripsi, menggunakan FILE * file dengan command fopen dan fclose. 
+- Membuka / membuat file dengan ```fopen(path, "rb");```. "rb" digunakan untuk membuka file sebagai binary file, bukan text file
+- Mengformat nama file seperti persyaratan no 2 menggunakan ```sprintf(topath, "%s.%03d", path, count)``` dimana topath nantinya akan berisi file yang sama persis dengan path, namun dengan format nama yang berbeda. "%s.%03d" untuk menambahkan nama file sesuai ukuran dari file dengan karakter 0 berjumlah 3 setelah titik. Misalkan ssfs.c.000, ssfs.c.001, dst.
+- Mengcopy isi file ke sub-file topath menggunakan write ```fopen(topath, "w")```
+- Untuk mengcopy file ke buffer / disimpan di memory buffer menggunakan ```size_t fread```
+- Setelah isi file di copy, tutup filenya, tambahkan countnya (sebagai penanda berapa topath / sub-file yang sudah dibuat), dan Mengformat nama file lagi menggunakan ```sprintf(topath, "%s.%03d", path, count)``` dengan count yang sudah bertambah.
+- Tidak lupa setelah sudah terbentuk n sub-file sesuai ukuran file asli, free buffer, tutup file, dan hapus file aslinya
 
 Dekripsi versi 2 :
-
-
+```Javascript
+void decription2(char * path){
+	FILE * check = fopen(path, "r");
+	if(check != NULL)return;
+	FILE * file = fopen(path, "w");
+	int count = 0;
+	char topath[1000];
+	sprintf(topath, "%s.%03d", path, count);
+	void * buffer = malloc(1024);
+	while(1){
+		FILE * op = fopen(topath, "rb");
+		if(op == NULL)break;
+		size_t readSize = fread(buffer, 1, 1024, op);
+		fwrite(buffer, 1, readSize, file);
+		fclose(op);
+		remove(topath);
+		count++;
+		sprintf(topath, "%s.%03d", path, count);
+	}
+	free(buffer);
+	fclose(file);
+}
+```
+- Untuk menyalin isi file yang akan di dekripsi, menggunakan FILE * file dengan command fopen dan fclose. 
+- Membuka / membuat file dengan ```fopen(path, "r");```. "r" digunakan untuk membuka file sebagai text file dan menyalin isinya dengan command ```fopen(path, "w")```. "w" digunakan untuk menulis isi file asli (sub-file akan menjadi 1 file asli sesuai file sebelum di enkripsi).
+- Membuka semua sub-file yang telah di enkripsi (di format) dengan ```FILE * op = fopen(topath, "rb");```. Apabila isinya kosong, berarti file tersebut tidak ada /not exist.
+- Untuk mengcopy file ke buffer / disimpan di memory buffer menggunakan ```size_t fread```
+- Untuk mendekripsi kembali, kita harus menghapus sub-file hasil enkripsi dengan ```remove(topath);```, menambah countnya, mengformat nama file lagi menggunakan ```sprintf(topath, "%s.%03d", path, count)``` dengan count yang sudah bertambah dan menghapusnya lagi sesuai jumlah sub-file.
+- Tidak lupa setelah sudah terbentuk n sub-file sesuai ukuran file asli, free buffer dan tutup file
 
 #### (untuk nomor 1 dan nomor 2). 
-#### Selanjutnya fungsi enkripsi dan dekripsi tersebut akan dipanggil dalam xmp_readdir dan xmp_getattr dan yang lainnya sesuai permintaan soal. Pemanggilan fungsi dekripsi pada xmp_readdir akan menampilkan nama file di folder tujuan yang telah didekripsi. Sedangkan pada xmp_getattr pemanggilan fungsi enkripsi agar file dapat menemukan lokasi aslinya dengan nama sebelumnya (awal).
+#### Selanjutnya fungsi enkripsi dan dekripsi tersebut akan dipanggil dalam xmp_readdir dan xmp_getattr dan yang lainnya sesuai permintaan soal. Pemanggilan fungsi dekripsi pada xmp_readdir akan menampilkan nama file di folder tujuan yang telah didekripsi. Sedangkan pada xmp_getattr pemanggilan fungsi enkripsi agar file dapat menemukan lokasi aslinya dengan nama sebelumnya (awal). 
+#### Untuk fungsi lainnya menyesuaikan, misalkan xmp_rename untuk mengganti nama file yang akan di enkripsi / dekripsi, xmp_unlink untuk menghapus suatu file, xmp_read dan xmp_wite untuk membuka / membuat file dan mengcopy isi file dst. Contoh xmp_readdir dan xmp_getattr :
 
 xmp_readdir :
 ```Javascript
@@ -199,21 +255,48 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_
 xmp_getattr
 ```Javascript
 static  int  xmp_getattr(const char *path, struct stat *stbuf){
-	printf("DEBUG getattr %s\n", path);
 	char * enc1Ptr = strstr(path, encv1);
-	if(enc1Ptr != NULL)
-		decription1(enc1Ptr);
+	if(lastCommand == MKNOD_STATUS || lastCommand == MKDIR_STATUS){
+
+	}else{
+		if(enc1Ptr != NULL)
+			decription1(enc1Ptr);
+	}
+	printf("DEBUG getattr %d %s\n", lastCommand, path);
+	char * enc2Ptr = strstr(path, encv2);
 	int res;
 	char fpath[1000];
 	sprintf(fpath,"%s%s", dirpath, path);
+	// printf("%s\n", fpath);
 	res = lstat(fpath, stbuf);
-	if (res == -1)
-		return -errno;
+	if (res == -1){
+		if(enc2Ptr == NULL){
+			return -errno;
+		}else{
+			sprintf(fpath,"%s%s.000", dirpath, path);
+			lstat(fpath, stbuf);
+			int count = 0;
+			struct stat st;
+			int sizeCount = 0;
+			while(1){
+				if(stat(fpath, &st) < 0){
+					break;
+				}
+				count++;
+				sprintf(fpath, "%s%s.%03d", dirpath, path, count);
+				sizeCount += st.st_size;
+			}
+			stbuf->st_size = sizeCount;
+		}
+	}
 	return 0;
 }
 ```
 - ```strstr(path, encv1);``` untuk mengambil / mereturn path yang stringnya hanya dimulai dari encv1, yaitu "encv1_", sehingga dari string encv1_ steerusnya dapat di dekripsi. 
 - ```lstat(fpath, stbuf)``` untuk mereturn informasi dari suatu file, dalam hal ini berarti fpath
+
+### 3. Sinkronisasi direktori otomatis:
+Jawab : 
 
 
 ### 4. Log System 

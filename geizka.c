@@ -108,7 +108,7 @@ void encription2(char * path){
 	char topath[1000];
 	sprintf(topath, "%s.%03d", path, count);
 	void * buffer = malloc(1024);
-	while(1){
+	while(1){ 
 		size_t readSize = fread(buffer, 1, 1024, file);
 		if(readSize == 0)break;
 		FILE * op = fopen(topath, "w");
