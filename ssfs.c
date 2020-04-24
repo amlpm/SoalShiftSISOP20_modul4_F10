@@ -20,7 +20,7 @@
 #define READ_STATUS 9
 #define OPEN_STATUS 10
 
-static  const  char * dirpath = "/home/geizka/Documents";
+static  const  char * dirpath = "/home/amelia/Documents";
 char key[100] = "9(ku@AW1[Lmvgax6q`5Y2Ry?+sF!^HKQiBXCUSe&0M.b%rI'7d)o4~VfZ*{#:}ETt$3J-zpc]lnh8,GwP_ND|jO";
 char encv1[10] = "encv1_";
 char encv2[10] = "encv2_";
@@ -28,7 +28,7 @@ char encv2[10] = "encv2_";
 static int lastCommand = 0;
 
 void writeWarning(char * str){
-	FILE * logFile = fopen("/home/geizka/fs.log", "a");
+	FILE * logFile = fopen("/home/amelia/fs.log", "a");
 	time_t rawtime;
 	struct tm * timeinfo;
 	time ( &rawtime );
@@ -38,7 +38,7 @@ void writeWarning(char * str){
 }
 
 void writeInfo(char * str){
-	FILE * logFile = fopen("/home/geizka/fs.log", "a");
+	FILE * logFile = fopen("/home/amelia/fs.log", "a");
 	time_t rawtime;
 	struct tm * timeinfo;
 	time ( &rawtime );
@@ -676,7 +676,7 @@ static struct fuse_operations xmp_oper = {
 	.open = xmp_open,
 	.read = xmp_read,
 	.write = xmp_write,
-	.fsyncdir = xmp_fsyncdir,
+	// .fsyncdir = xmp_fsyncdir,
 };
 
 int  main(int  argc, char *argv[]){
