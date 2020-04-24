@@ -298,6 +298,70 @@ static  int  xmp_getattr(const char *path, struct stat *stbuf){
 ### 3. Sinkronisasi direktori otomatis:
 Jawab : 
 
+Menggunakan xmp_fsync dengan command fsync();
+```Javascript
+static int xmp_fsyncdir(const char *path, int isdatasync, struct fuse_file_info *fi) {
+    
+    printf("\n\nDEBUG sync\n\n");
+    char fpath[1000], fileName1[100], fileName2[100];
+    int n, m, res;
+
+    sprintf(fpath, "%s%s", dirpath, path);
+    sprintf(fileName1, "%s", path);
+    sprintf(fileName2, "sync_%s", path);
+
+    DIR *dp = opendir(fpath);
+    DIR *d1 = opendir(fileName1);
+    DIR *d2 = opendir(fileName2);
+    struct tm *foo1, *foo2;
+    struct stat attrib1, attrib2;
+    struct dirent *de, *di1, *di2;
+    struct dirent **namelist1, **namelist2;
+
+    while((de = readdir(dp)) != NULL) {
+        if(strcmp(fileName1, de->d_name) == 0 && strcmp(fileName2, de->d_name) == 0) {
+            if  (((di1 = readdir(d1)) != NULL) && ((di2 = readdir(d2)) != NULL)) {
+                n = scandir(fileName1, &namelist1, NULL, alphasort);
+                m = scandir(fileName2, &namelist2, NULL, alphasort);
+                if (n == m){
+                    while (n--) {
+                        if(strcmp(di1->d_name, di2->d_name) != 0) break; 
+                        
+                        stat(di1->d_name, &attrib1);
+                        stat(di2->d_name, &attrib2);
+                        foo1 = gmtime(&(attrib1.st_mtime));
+                        foo2 = gmtime(&(attrib2.st_mtime));
+                        res = foo1->tm_sec - foo2->tm_sec;
+                        if(res > 0.1) break;
+
+						FILE * fp = fopen(fileName1, "wb");
+						write(fp, fileName1, strlen(fileName1));
+						write(fp, "\n", 1);
+						fsync(fp);
+
+						FILE * fd = fopen(fileName2, "wb");
+						write(fd, fileName2, strlen(fileName2));
+						write(fd, "\n", 1);
+						fsync(fd);
+
+						fclose(fp);
+						fclose(fd);
+                    }				
+                }
+				closedir(d1);
+				closedir(d2);
+            }
+        }
+    }
+    return 0;
+} 
+```
+- Langkah pertama, membuka directory fpath, yaitu directory tempat kita mount dengan ```opendir(fpath);```, apabila direktori kosong, sync tidak akan dilanjutkan
+- Cek juga apakah kedua direktori (path dan sync_path) kosong atau tidak, kalau kosong tidak akan dilanjutkan. lalu menghitung jumlah file / direktori di kedua direktori menggunakan ```scandir(fileName1, &namelist1, NULL, alphasort)```, lalu apabila jumlah file / direktori di kedua direktori sama, maka kedua direktori bs di sync.
+- Untuk mendapatkan modified time, digunakan ```stat(di1->d_name, &attrib1)``` dan ```foo1 = gmtime(&(attrib1.st_mtime))```. Stat digunakan untuk mengambil informasi tentang file yang ditunjuk dengan pathname yaitu di1->d_name dan gmtime untuk mengetahui modified time dari suatu file / direktori. Apabila selisih modified time dari kedua direktori lebih dari 0.1, kedua direktori tidak boleh di sync
+- Sync kedua direktori menggunakan ```fsync();```
+- Tidak lupa menutup file dan direktori ketika sudah selesai sync
+
 
 ### 4. Log System 
 
