@@ -676,7 +676,7 @@ static struct fuse_operations xmp_oper = {
 	.open = xmp_open,
 	.read = xmp_read,
 	.write = xmp_write,
-	// .fsyncdir = xmp_fsyncdir,
+	.fsyncdir = xmp_fsyncdir,
 };
 
 int  main(int  argc, char *argv[]){
